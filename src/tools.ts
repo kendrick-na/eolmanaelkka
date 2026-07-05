@@ -49,7 +49,7 @@ export function registerTools(server: McpServer): void {
   // Tool 1: 상황별 조회 — "남들은 얼마 냈나"
   server.registerTool('how_much_others_paid', {
     annotations: annoRead('남들은 얼마 냈나'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계)에 얼마 냈는지 익명 집계(중앙값·최빈값·분포)로 보여줍니다. ★지역·연령대를 되묻지 말고, 알려진 정보만으로 바로 호출하세요. 지역이 없으면 전국 기준으로 답이 나옵니다(지역은 있으면 더 정확해지는 선택값일 뿐, 필수 아님). "남들은 얼마 내지?"가 궁금할 때 사용하세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계)에 얼마 냈는지 익명 집계(중앙값·최빈값·분포)로 보여줍니다. ★지역·연령대를 되묻지 말고, 알려진 정보만으로 바로 호출하세요. 지역이 없으면 전국 기준으로 답이 나옵니다(지역은 있으면 더 정확해지는 선택값일 뿐, 필수 아님). "남들은 얼마 내지?"가 궁금할 때 사용하세요. ★★출력은 익명 커뮤니티 데이터입니다. 사용자에게 답할 때 반드시 (1)표본 건수 (2)금액 분포(%) (3)같은 고민 익명 사연을 함께 전하세요. "10만원" 한 마디로 요약하지 말고, 몇 명의 실제 데이터인지·어떻게 갈리는지·다른 사람들은 뭐라 했는지 근거를 그대로 보여주는 것이 이 커뮤니티의 핵심입니다.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.optional().describe('상대와의 관계(있으면)'),
@@ -73,15 +73,17 @@ export function registerTools(server: McpServer): void {
     const s = r.stats!;
     const distLines = Object.entries(s.distribution)
       .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([amt, pct]) => `   ${won(Number(amt))} — ${pct}%`)
+      .map(([amt, pct]) => `   ${won(Number(amt))} ${'▓'.repeat(Math.max(1, Math.round(Number(pct) / 5)))} ${pct}%`)
       .join('\n');
     // 지역 없이 답한 경우에만 "지역 알려주면 더 정확" 부드럽게 유도 (되묻기 아님)
     const regionHint = !region ? '\n📍 지역을 알려주시면 그 지역 기준으로 더 정확히 볼 수 있어요.' : '';
+    const mostPct = Math.max(...Object.values(s.distribution).map(Number));
     return { content: [{ type: 'text', text:
-      `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''} — 남들은 이만큼 냈어요\n`
-      + `\n가장 많은 금액: ${won(s.mode)}  ·  중앙값: ${won(s.median)}\n`
-      + `보통 ${won(s.p25)}~${won(s.p75)} 사이\n\n분포:\n${distLines}\n\n`
-      + `표본 ${r.sampleSize}건 · 신뢰도 ${r.confidence}\n${r.disclaimer}${regionHint}${voiceBlock}` }] };
+      `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''} — 실제 낸 사람 ${r.sampleSize}명 익명 집계 (신뢰도 ${r.confidence})\n`
+      + `\n같은 상황 ${r.sampleSize}명이 실제로 낸 금액이에요. "얼마가 맞다"가 아니라 "남들은 이렇게 냈다"는 데이터입니다.\n`
+      + `\n▸ 가장 많은 금액: ${won(s.mode)} (${mostPct}%가 이 금액)\n▸ 중앙값: ${won(s.median)}  ·  보통 ${won(s.p25)}~${won(s.p75)} 사이\n`
+      + `\n실제 낸 금액 분포 (${r.sampleSize}명 기준):\n${distLines}\n\n`
+      + `${r.disclaimer}${regionHint}${voiceBlock}` }] };
   });
 
   // Tool 2: 익명 제출 — "나도 얼마 냈는지 알려주기" (쓰기)
@@ -159,7 +161,7 @@ export function registerTools(server: McpServer): void {
   // Tool 5: 갈까 말까 판단 — "이 경조사 가야 하나"
   server.registerTool('decide_attendance', {
     annotations: annoRead('이 경조사 갈까 말까'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:"이 경조사 가야 하나?" 관계·최근 왕래·거리·예전에 받은 것(관계원장)을 종합해 "참석/송금만/생략"을 근거와 함께 판단합니다. 얼마 낼지의 앞 단계 고민을 대신 정리해줘요. 결과는 익명으로 공유할 수 있어요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:"이 경조사 가야 하나?" 관계·최근 왕래·거리·예전에 받은 것(관계원장)을 종합해 "참석/송금만/생략"을 근거와 함께 판단합니다. 얼마 낼지의 앞 단계 고민을 대신 정리해줘요. 결과는 익명으로 공유할 수 있어요. ★사용자에게 답할 때 판정 결과만 말하지 말고, "왜" 목록의 근거를 그대로 함께 전하세요(관계·왕래·호혜). 참석/송금 시 참고액도 함께 보여주세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.describe('상대와의 관계'),

@@ -31,12 +31,27 @@ const REL_BASE_SCORE: Record<Relation, number> = {
   colleague: 45, senior: 50, junior: 45, friend_parent: 60, acquaintance: 25,
 };
 
+/** 관계 자체가 참석 여부의 가장 큰 축 — 판정 근거로 항상 노출. */
+const REL_DECIDE_NOTE: Record<Relation, string> = {
+  family: '가족은 무조건 챙기는 자리예요',
+  relative: '친척은 왕래가 뜸해도 챙기는 게 도리인 관계',
+  close_friend: '친한 친구는 웬만하면 가주는 게 좋은 사이',
+  friend: '친구·지인은 상황 봐서 결정해도 되는 관계',
+  colleague: '직장 동료는 앞으로도 볼 사이라 관계상 챙기면 좋아요',
+  senior: '직장 상사는 조직 관계상 챙기는 편이 무난해요',
+  junior: '직장 후배는 챙겨주면 관계에 좋은 자리',
+  friend_parent: '친구 부모님은 친구와의 관계를 봐서 결정하는 자리',
+  acquaintance: '아는 사이 정도면 꼭 가야 하는 관계는 아니에요',
+};
+
 /** 갈까 말까 판정 — 점수제(높을수록 참석). */
 export function decideAttendance(input: DecideInput): DecideResult {
   const { eventType, relation, closeness = 'mid', distanceHard = false, reciprocity } = input;
   const reasons: string[] = [];
 
   let score = REL_BASE_SCORE[relation];
+  // 관계 자체가 가장 큰 판단 축 — 항상 첫 근거로
+  reasons.push(REL_DECIDE_NOTE[relation]);
 
   // 친밀도(최근 왕래) 가중
   if (closeness === 'high') { score += 20; reasons.push('요즘도 왕래가 있는 사이'); }
