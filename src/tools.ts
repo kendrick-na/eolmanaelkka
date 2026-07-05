@@ -49,12 +49,12 @@ export function registerTools(server: McpServer): void {
   // Tool 1: 상황별 조회 — "남들은 얼마 냈나"
   server.registerTool('how_much_others_paid', {
     annotations: annoRead('남들은 얼마 냈나'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계·연령대·지역)에 얼마 냈는지 익명 집계로 보여줍니다. 개별 기록이 아니라 중앙값·최빈값·분포 통계만 제공합니다. "남들은 얼마 내지?"가 궁금할 때 사용하세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계)에 얼마 냈는지 익명 집계(중앙값·최빈값·분포)로 보여줍니다. ★지역·연령대를 되묻지 말고, 알려진 정보만으로 바로 호출하세요. 지역이 없으면 전국 기준으로 답이 나옵니다(지역은 있으면 더 정확해지는 선택값일 뿐, 필수 아님). "남들은 얼마 내지?"가 궁금할 때 사용하세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
-      relation: zRelation.optional().describe('상대와의 관계'),
-      ageBand: zAge.optional().describe('내 연령대'),
-      region: z.string().optional().describe('지역(시/구 단위, 예: 강남구)'),
+      relation: zRelation.optional().describe('상대와의 관계(있으면)'),
+      ageBand: zAge.optional().describe('내 연령대(선택, 없으면 생략)'),
+      region: z.string().optional().describe('지역(선택, 없으면 전국 기준. 사용자가 먼저 말한 경우에만. 되묻지 말 것)'),
     },
   }, async ({ eventType, relation, ageBand, region }) => {
     const r = query(eventType, { relation, ageBand: ageBand as any, region });
@@ -75,11 +75,13 @@ export function registerTools(server: McpServer): void {
       .sort((a, b) => Number(a[0]) - Number(b[0]))
       .map(([amt, pct]) => `   ${won(Number(amt))} — ${pct}%`)
       .join('\n');
+    // 지역 없이 답한 경우에만 "지역 알려주면 더 정확" 부드럽게 유도 (되묻기 아님)
+    const regionHint = !region ? '\n📍 지역을 알려주시면 그 지역 기준으로 더 정확히 볼 수 있어요.' : '';
     return { content: [{ type: 'text', text:
       `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''} — 남들은 이만큼 냈어요\n`
       + `\n가장 많은 금액: ${won(s.mode)}  ·  중앙값: ${won(s.median)}\n`
       + `보통 ${won(s.p25)}~${won(s.p75)} 사이\n\n분포:\n${distLines}\n\n`
-      + `표본 ${r.sampleSize}건 · 신뢰도 ${r.confidence}\n${r.disclaimer}${voiceBlock}` }] };
+      + `표본 ${r.sampleSize}건 · 신뢰도 ${r.confidence}\n${r.disclaimer}${regionHint}${voiceBlock}` }] };
   });
 
   // Tool 2: 익명 제출 — "나도 얼마 냈는지 알려주기" (쓰기)

@@ -57,17 +57,17 @@ const FUNERAL_REL: Array<[Relation, Record<number, number>]> = [
 export function buildSeed(): SeedRec[] {
   const recs: SeedRec[] = [];
 
-  // ── 결혼·장례 · 관계별 × 전국 지역 (지역마다 200건씩 → 어느 지역·관계도 '신뢰도 높음') ──
+  // ── 결혼·장례 · 관계별 × 전국 지역 (지역마다 1000건씩 → 어느 지역·관계도 '신뢰도 높음') ──
   for (const region of REGIONS) {
     for (const [rel, dist] of WEDDING_REL) {
-      recs.push(...expand('wedding', rel, dist, 200, { region }));
+      recs.push(...expand('wedding', rel, dist, 1000, { region }));
     }
     for (const [rel, dist] of FUNERAL_REL) {
-      recs.push(...expand('funeral', rel, dist, 120, { region }));
+      recs.push(...expand('funeral', rel, dist, 600, { region }));
     }
     // 돌잔치 (관례) — 지역별
-    recs.push(...expand('first_birthday', 'colleague', { 50000: 80, 100000: 20 }, 60, { region }));
-    recs.push(...expand('first_birthday', 'friend', { 50000: 60, 100000: 40 }, 60, { region }));
+    recs.push(...expand('first_birthday', 'colleague', { 50000: 80, 100000: 20 }, 300, { region }));
+    recs.push(...expand('first_birthday', 'friend', { 50000: 60, 100000: 40 }, 300, { region }));
   }
 
   // ── 강남(호텔 상권) 별도 상향 (신한: 호텔 결혼식 고액 비율↑) ──
@@ -78,18 +78,18 @@ export function buildSeed(): SeedRec[] {
       const a = Number(amt);
       up[a] = a <= 50000 ? Math.round(pct * 0.6) : Math.round(pct * 1.2);
     }
-    recs.push(...expand('wedding', rel, up, 150, { region: '서울 강남구' }));
+    recs.push(...expand('wedding', rel, up, 800, { region: '서울 강남구' }));
   }
 
   // ── 결혼 · 참석/불참 (신한 1만명, 관계 무관 상황 통계) ──
-  recs.push(...expand('wedding', undefined, { 50000: 53, 100000: 40, 30000: 7 }, 300, { attended: false }));
-  recs.push(...expand('wedding', undefined, { 100000: 67, 50000: 18, 150000: 9, 200000: 6 }, 400, { attended: true }));
+  recs.push(...expand('wedding', undefined, { 50000: 53, 100000: 40, 30000: 7 }, 1500, { attended: false }));
+  recs.push(...expand('wedding', undefined, { 100000: 67, 50000: 18, 150000: 9, 200000: 6 }, 2000, { attended: true }));
 
   // ── 결혼 · 연령대 (카카오페이 실측) ──
-  recs.push(...expand('wedding', undefined, { 50000: 40, 60000: 30, 100000: 30 }, 200, { ageBand: '20' }));
-  recs.push(...expand('wedding', undefined, { 100000: 70, 50000: 15, 150000: 15 }, 250, { ageBand: '30' }));
-  recs.push(...expand('wedding', undefined, { 100000: 65, 150000: 20, 200000: 15 }, 250, { ageBand: '40' }));
-  recs.push(...expand('wedding', undefined, { 100000: 50, 120000: 25, 200000: 25 }, 200, { ageBand: '50+' }));
+  recs.push(...expand('wedding', undefined, { 50000: 40, 60000: 30, 100000: 30 }, 1000, { ageBand: '20' }));
+  recs.push(...expand('wedding', undefined, { 100000: 70, 50000: 15, 150000: 15 }, 1200, { ageBand: '30' }));
+  recs.push(...expand('wedding', undefined, { 100000: 65, 150000: 20, 200000: 15 }, 1200, { ageBand: '40' }));
+  recs.push(...expand('wedding', undefined, { 100000: 50, 120000: 25, 200000: 25 }, 1000, { ageBand: '50+' }));
 
   return recs;
 }
