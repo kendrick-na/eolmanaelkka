@@ -140,16 +140,37 @@ export interface StatsResult {
   disclaimer: string;
 }
 
-/** 상황별 조회 (search_gift_records) — 집계만 반환, 개별 raw 절대 미반환 */
+/** 상황별 조회 (search_gift_records) — 집계만 반환, 개별 raw 절대 미반환.
+ *  ★ 점진적 필터 완화(fallback): 지역+관계+나이로 표본이 부족하면 조건을 하나씩 풀어
+ *     항상 통계가 나오게 한다. 어느 지역을 넣어도 "전국 기준"으로라도 답이 나옴.
+ *     완화된 조건은 relaxedNote로 정직하게 표기(예: "서울 표본이 적어 전국 기준"). */
 export function query(
   eventType: EventType,
   filter: { relation?: Relation; ageBand?: GiftRecord['ageBand']; region?: string } = {},
 ): StatsResult {
   const all = readJsonl<GiftRecord>(recordsFile());
-  let matched = all.filter((r) => r.eventType === eventType);
-  if (filter.relation) matched = matched.filter((r) => r.relation === filter.relation);
-  if (filter.ageBand) matched = matched.filter((r) => r.ageBand === filter.ageBand);
-  if (filter.region) matched = matched.filter((r) => r.region && r.region.includes(filter.region!));
+  const base = all.filter((r) => r.eventType === eventType);
+
+  // 필터 조합을 강→약 순으로 시도. 첫 번째로 표본 충분한 조합 채택.
+  type Step = { region?: boolean; relation?: boolean; ageBand?: boolean; label?: string };
+  const steps: Step[] = [
+    { region: true, relation: true, ageBand: true },
+    { region: true, relation: true },
+    { relation: true, ageBand: true, label: filter.region ? '전국 기준' : undefined },
+    { relation: true, label: filter.region ? '전국 기준' : undefined },
+    { label: filter.region || filter.relation ? '비슷한 경조사 전체 기준' : undefined },
+  ];
+
+  let matched = base;
+  let relaxedNote: string | undefined;
+  for (const s of steps) {
+    let m = base;
+    if (s.region && filter.region) m = m.filter((r) => r.region && r.region.includes(filter.region!));
+    if (s.relation && filter.relation) m = m.filter((r) => r.relation === filter.relation);
+    if (s.ageBand && filter.ageBand) m = m.filter((r) => r.ageBand === filter.ageBand);
+    if (m.length >= MIN_SAMPLE) { matched = m; relaxedNote = s.label; break; }
+    matched = m; // 마지막 단계까지 부족하면 그 결과 유지
+  }
 
   const n = matched.length;
   const seedN = matched.filter((r) => r.seed).length;
@@ -161,7 +182,7 @@ export function query(
       stats: null,
       confidence: '낮음',
       seedRatio: n ? seedN / n : 0,
-      disclaimer: `아직 이 상황의 표본이 ${n}건이라 통계를 내기엔 부족해요. 조금 더 모이면 보여드릴게요.`,
+      disclaimer: `아직 이 경조사 표본이 ${n}건이라 통계를 내기엔 부족해요. 조금 더 모이면 보여드릴게요.`,
     };
   }
 
@@ -190,6 +211,8 @@ export function query(
     },
     confidence: confidence(n),
     seedRatio: seedN / n,
-    disclaimer: `표본 ${n}건 기준 참고치예요. 관계·상황에 따라 다를 수 있어요.`,
+    disclaimer: relaxedNote
+      ? `${relaxedNote} · 표본 ${n}건 참고치예요. (해당 지역 표본이 아직 적어 범위를 넓혔어요)`
+      : `표본 ${n}건 기준 참고치예요. 관계·상황에 따라 다를 수 있어요.`,
   };
 }

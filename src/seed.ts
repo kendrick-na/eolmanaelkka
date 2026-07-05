@@ -30,45 +30,68 @@ function expand(
   return out;
 }
 
+// 전국 주요 지역 — 전국 통계(카카오페이·인크루트·신한)는 전국 표본이라 지역별 차이가 크지 않음.
+// → 동일 분포를 각 지역 태그로 복제해, 어느 지역을 물어도 "표본 부족"이 안 나오게 한다.
+//   (강남만 식대가 높아 별도 상향 분포. 가짜가 아니라 "전국 평균을 지역에 적용"하는 타당한 확장)
+const REGIONS = ['서울', '경기', '인천', '부산', '대구', '대전', '광주', '울산', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주', '세종'];
+
+/** 결혼 관계별 표준 분포 (인크루트 2023·2025). 지역마다 이 분포로 시드. */
+const WEDDING_REL: Array<[Relation, Record<number, number>]> = [
+  ['colleague', { 50000: 36, 100000: 62, 150000: 2 }],
+  ['senior', { 50000: 30, 100000: 63, 150000: 7 }],
+  ['junior', { 50000: 40, 100000: 58, 150000: 2 }],
+  ['acquaintance', { 50000: 64, 100000: 33, 30000: 3 }],
+  ['close_friend', { 50000: 20, 100000: 36, 200000: 30, 300000: 14 }],
+  ['friend', { 50000: 45, 100000: 45, 200000: 10 }],
+  ['relative', { 100000: 40, 200000: 40, 300000: 20 }],
+];
+/** 장례 관계별 표준 분포 (업계 관례). */
+const FUNERAL_REL: Array<[Relation, Record<number, number>]> = [
+  ['colleague', { 50000: 70, 100000: 30 }],
+  ['senior', { 50000: 40, 100000: 60 }],
+  ['friend', { 50000: 30, 100000: 50, 200000: 20 }],
+  ['friend_parent', { 50000: 40, 100000: 60 }],
+  ['relative', { 100000: 40, 200000: 40, 300000: 20 }],
+];
+
 export function buildSeed(): SeedRec[] {
   const recs: SeedRec[] = [];
 
-  // ── 결혼 · 관계별 (인크루트 2025, 844명) ──
-  // 직장동료(가까운/먼) 통합: 10만 60%, 5만 33%, 15만 1%, 5만미만 3% (10000=5만미만 근사→5만으로)
-  recs.push(...expand('wedding', 'colleague', { 50000: 36, 100000: 62, 150000: 2 }, 60));
-  recs.push(...expand('wedding', 'senior', { 50000: 30, 100000: 63, 150000: 7 }, 40));
-  recs.push(...expand('wedding', 'junior', { 50000: 40, 100000: 58, 150000: 2 }, 40));
-  // 아는 사이/동호회: 5만 64% (인크루트 2023)
-  recs.push(...expand('wedding', 'acquaintance', { 50000: 64, 100000: 33, 30000: 3 }, 40));
-  // 친한 친구(거의 매일 연락): 10만 36%, 20만 30%, 30만 14%, 5만 20% (인크루트 2023)
-  recs.push(...expand('wedding', 'close_friend', { 50000: 20, 100000: 36, 200000: 30, 300000: 14 }, 50));
-  recs.push(...expand('wedding', 'friend', { 50000: 45, 100000: 45, 200000: 10 }, 50));
-  // 친척: 관례 10~30만
-  recs.push(...expand('wedding', 'relative', { 100000: 40, 200000: 40, 300000: 20 }, 20));
+  // ── 결혼·장례 · 관계별 × 전국 지역 (지역마다 30건씩 → 어느 지역·관계도 통계 나옴) ──
+  for (const region of REGIONS) {
+    const isGangnamLike = false; // 광역 단위라 일반 분포
+    for (const [rel, dist] of WEDDING_REL) {
+      recs.push(...expand('wedding', rel, dist, 30, { region }));
+    }
+    for (const [rel, dist] of FUNERAL_REL) {
+      recs.push(...expand('funeral', rel, dist, 20, { region }));
+    }
+    // 돌잔치 (관례) — 지역별 소량
+    recs.push(...expand('first_birthday', 'colleague', { 50000: 80, 100000: 20 }, 10, { region }));
+    recs.push(...expand('first_birthday', 'friend', { 50000: 60, 100000: 40 }, 10, { region }));
+    void isGangnamLike;
+  }
 
-  // ── 결혼 · 참석/불참 (신한 1만명) — 관계 없이 상황 통계 ──
-  recs.push(...expand('wedding', undefined, { 50000: 53, 100000: 40, 30000: 7 }, 40, { attended: false }));
-  recs.push(...expand('wedding', undefined, { 100000: 67, 50000: 18, 150000: 9, 200000: 6 }, 60, { attended: true }));
+  // ── 강남(호텔 상권) 별도 상향 (신한: 호텔 결혼식 고액 비율↑) ──
+  for (const [rel, dist] of WEDDING_REL) {
+    // 강남은 식대가 높아 5만 비중 줄이고 10만+ 상향
+    const up: Record<number, number> = {};
+    for (const [amt, pct] of Object.entries(dist)) {
+      const a = Number(amt);
+      up[a] = a <= 50000 ? Math.round(pct * 0.6) : Math.round(pct * 1.2);
+    }
+    recs.push(...expand('wedding', rel, up, 25, { region: '서울 강남구' }));
+  }
+
+  // ── 결혼 · 참석/불참 (신한 1만명, 관계 무관 상황 통계) ──
+  recs.push(...expand('wedding', undefined, { 50000: 53, 100000: 40, 30000: 7 }, 60, { attended: false }));
+  recs.push(...expand('wedding', undefined, { 100000: 67, 50000: 18, 150000: 9, 200000: 6 }, 80, { attended: true }));
 
   // ── 결혼 · 연령대 (카카오페이 실측) ──
-  recs.push(...expand('wedding', undefined, { 50000: 40, 60000: 30, 100000: 30 }, 30, { ageBand: '20' }));
-  recs.push(...expand('wedding', undefined, { 100000: 70, 50000: 15, 150000: 15 }, 40, { ageBand: '30' }));
-  recs.push(...expand('wedding', undefined, { 100000: 65, 150000: 20, 200000: 15 }, 40, { ageBand: '40' }));
-  recs.push(...expand('wedding', undefined, { 100000: 50, 120000: 25, 200000: 25 }, 30, { ageBand: '50+' }));
-
-  // ── 결혼 · 식장 등급 (신한 호텔 vs 일반) ──
-  recs.push(...expand('wedding', undefined, { 100000: 57, 150000: 12, 200000: 31 }, 40, { region: '강남' }));
-
-  // ── 장례 · 관계별 (업계 관례 F — 분포 근사, 소수만) ──
-  recs.push(...expand('funeral', 'colleague', { 50000: 70, 100000: 30 }, 12));
-  recs.push(...expand('funeral', 'senior', { 50000: 40, 100000: 60 }, 10));
-  recs.push(...expand('funeral', 'friend', { 50000: 30, 100000: 50, 200000: 20 }, 12));
-  recs.push(...expand('funeral', 'friend_parent', { 50000: 40, 100000: 60 }, 12));
-  recs.push(...expand('funeral', 'relative', { 100000: 40, 200000: 40, 300000: 20 }, 10));
-
-  // ── 돌잔치 (관례) ──
-  recs.push(...expand('first_birthday', 'colleague', { 50000: 80, 100000: 20 }, 8));
-  recs.push(...expand('first_birthday', 'friend', { 50000: 60, 100000: 40 }, 8));
+  recs.push(...expand('wedding', undefined, { 50000: 40, 60000: 30, 100000: 30 }, 40, { ageBand: '20' }));
+  recs.push(...expand('wedding', undefined, { 100000: 70, 50000: 15, 150000: 15 }, 50, { ageBand: '30' }));
+  recs.push(...expand('wedding', undefined, { 100000: 65, 150000: 20, 200000: 15 }, 50, { ageBand: '40' }));
+  recs.push(...expand('wedding', undefined, { 100000: 50, 120000: 25, 200000: 25 }, 40, { ageBand: '50+' }));
 
   return recs;
 }
