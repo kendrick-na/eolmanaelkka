@@ -39,9 +39,13 @@ const RELATION_WEIGHT: Record<Relation, { w: number; label: string }> = {
   friend_parent: { w: 1.0, label: '친구의 부모' },
 };
 
-/** 만원 단위 반올림 → 실제로 내는 자연스러운 금액으로. */
+/** 관습 금액 스냅 — 한국 축의금은 5·7·10·15·20·30·50만 단위로 냄.
+ *  계산값(8만·12만 같은 어정쩡한 값)을 실제로 내는 가장 가까운 금액으로 맞춘다. */
+const CUSTOM_AMOUNTS = [30000, 50000, 70000, 100000, 150000, 200000, 300000, 500000, 1000000];
 function roundGift(n: number): number {
-  return Math.round(n / 10000) * 10000;
+  // 가장 가까운 관습 금액으로 스냅
+  return CUSTOM_AMOUNTS.reduce((best, v) =>
+    Math.abs(v - n) < Math.abs(best - n) ? v : best, CUSTOM_AMOUNTS[0]);
 }
 
 function ageBucket(age?: number): string {
