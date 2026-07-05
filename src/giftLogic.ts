@@ -56,6 +56,7 @@ function ageBucket(age?: number): string {
 export interface GiftInput {
   eventType: EventType;
   relation: Relation;
+  closeness?: 'high' | 'mid' | 'low'; // 친밀도(요즘 왕래) — 같은 관계라도 이걸로 금액 차등
   regionTier?: RegionTier;
   age?: number;             // 내 나이 (없으면 30대 가정)
   attendance?: Attendance;  // 참석/불참 (불참이면 식대 논리 약화)
@@ -63,13 +64,20 @@ export interface GiftInput {
   reciprocity?: number;     // 관계원장: 이 사람이 나에게 냈던 금액 (호혜 기준)
 }
 
+/** 친밀도 배수 — 같은 관계라도 친하면↑ 소원하면↓ */
+const CLOSENESS_MULT: Record<'high' | 'mid' | 'low', { m: number; label: string }> = {
+  high: { m: 1.2, label: '요즘도 자주 보는 각별한 사이' },
+  mid: { m: 1.0, label: '' },
+  low: { m: 0.75, label: '요즘은 거의 왕래 없는 사이' },
+};
+
 /**
  * 적정 축의금/조의금 산정.
  * 결혼=식대 기반, 장례=관계 기반(식대 논리 약함), 나이·참석·동반·호혜 반영.
  */
 export function estimateGift(input: GiftInput): GiftEstimate {
   const {
-    eventType, relation,
+    eventType, relation, closeness = 'mid',
     regionTier = 'seoul', age, attendance = 'attend',
     companions = 0, reciprocity,
   } = input;
@@ -78,10 +86,12 @@ export function estimateGift(input: GiftInput): GiftEstimate {
   const rel = RELATION_WEIGHT[relation];
   const ageAvg = AGE_AVG[ageBucket(age)];
   const meal = MEAL_COST[regionTier];
+  const close = CLOSENESS_MULT[closeness];
 
-  // 1) 기준선 = 연령 평균 × 관계 가중
-  let base = ageAvg * rel.w;
+  // 1) 기준선 = 연령 평균 × 관계 가중 × 친밀도
+  let base = ageAvg * rel.w * close.m;
   reasons.push(`${rel.label} 관계 기준 (연령대 평균 ${(ageAvg / 10000).toFixed(0)}만 × 관계 가중)`);
+  if (close.label) reasons.push(close.label);
 
   // 2) 결혼식 & 참석: "축의금 ≥ 식대" 하한 보장
   if (eventType === 'wedding' && attendance === 'attend') {

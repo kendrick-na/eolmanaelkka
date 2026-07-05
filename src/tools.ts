@@ -108,10 +108,11 @@ export function registerTools(server: McpServer): void {
   // Tool 3: 적정액 산정 — "나는 얼마 내면 돼"
   server.registerTool('how_much_should_i_pay', {
     annotations: annoRead('나는 얼마 내면 될까'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내 상황(경조사·관계·나이·참석여부·식장 지역·동반인원)을 넣으면 적정 축의금/조의금을 근거와 함께 추천합니다. 예전에 이 사람에게 받은 금액(관계원장)이 있으면 호혜 기준으로 우선 반영합니다. 봉투 문구·멘트는 write_envelope으로 이어서 받으세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내 상황(경조사·관계·친밀도·나이·참석여부·식장 지역·동반인원)을 넣으면 적정 축의금/조의금을 근거와 함께 추천합니다. 같은 관계라도 친밀도(요즘 자주 보는지)에 따라 금액이 달라집니다. 예전에 이 사람에게 받은 금액(관계원장)이 있으면 호혜 기준으로 우선 반영합니다. 봉투 문구·멘트는 write_envelope으로 이어서 받으세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.describe('상대와의 관계'),
+      closeness: z.enum(['high', 'mid', 'low']).optional().describe('친밀도: high=요즘도 자주 봄, mid=보통, low=거의 왕래 없음 (같은 관계라도 금액 차등)'),
       regionTier: zRegionTier.optional().describe('식장 지역 등급(강남/서울/수도권·광역시/지방)'),
       age: z.number().optional().describe('내 나이'),
       attendance: z.enum(['attend', 'absent']).optional().describe('참석/불참'),
@@ -119,11 +120,12 @@ export function registerTools(server: McpServer): void {
       userId: z.string().optional().describe('관계원장 조회용 사용자 식별자'),
       person: z.string().optional().describe('상대 이름/별칭(관계원장 호혜 조회용)'),
     },
-  }, async ({ eventType, relation, regionTier, age, attendance, companions, userId, person }) => {
+  }, async ({ eventType, relation, closeness, regionTier, age, attendance, companions, userId, person }) => {
     let reciprocity: number | undefined;
     if (userId && person) reciprocity = findReciprocity(userId, person);
     const input: GiftInput = {
       eventType, relation,
+      closeness: closeness as any,
       regionTier: regionTier as RegionTier | undefined,
       age, attendance: attendance as Attendance | undefined,
       companions, reciprocity,
