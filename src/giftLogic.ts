@@ -126,6 +126,18 @@ export function estimateGift(input: GiftInput): GiftEstimate {
   }
 
   const recommended = roundGift(base);
+
+  // 5) 정직 설명: 친밀도를 반영했는데 스냅 후 mid와 결과가 같아졌다면
+  //    (강남처럼 식대 하한이 높아 관습금액 눈금 안에서 차이가 흡수된 경우) 그 이유를 밝힌다.
+  if (eventType === 'wedding' && attendance === 'attend' && closeness !== 'mid' && !reciprocity) {
+    const midBase = ageAvg * rel.w * CLOSENESS_MULT.mid.m;
+    const guests = 1 + Math.max(0, companions);
+    const midFloored = Math.max(midBase, meal.mid * guests);
+    if (roundGift(midFloored) === recommended) {
+      reasons.push(`${meal.label} 식대가 높아, 이 관계에선 친밀도 차이가 관습 금액 눈금(10·15·20만) 안에서 흡수됐어요`);
+    }
+  }
+
   // 범위: 권장 ±1구간
   const min = roundGift(recommended * 0.8);
   const max = roundGift(recommended * 1.2);
