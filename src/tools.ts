@@ -49,7 +49,7 @@ export function registerTools(server: McpServer): void {
   // Tool 1: 상황별 조회 — "남들은 얼마 냈나"
   server.registerTool('how_much_others_paid', {
     annotations: annoRead('남들은 얼마 냈나'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계·연령대·지역)에 얼마 냈는지 익명 집계로 보여줍니다. 개별 기록이 아니라 중앙값·최빈값·분포 통계만 제공합니다. "남들은 얼마 내지?"가 궁금할 때 사용하세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계·연령대·지역)에 얼마 냈는지 익명 집계로 보여줍니다. 개별 기록이 아니라 중앙값·최빈값·분포 통계만 제공합니다. "남들은 얼마 내지?"가 궁금할 때 사용하세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.optional().describe('상대와의 관계'),
@@ -85,7 +85,7 @@ export function registerTools(server: McpServer): void {
   // Tool 2: 익명 제출 — "나도 얼마 냈는지 알려주기" (쓰기)
   server.registerTool('submit_gift_record', {
     annotations: annoWrite('내가 낸 금액 익명 등록'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:내가 실제로 낸 경조사비를 익명으로 등록해 통계에 보탭니다. 상대 이름·식장명·날짜는 저장하지 않고, 상황(종류·관계·연령대·지역·금액)만 익명 집계됩니다. 기여하면 다른 사람도 참고할 수 있어요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내가 실제로 낸 경조사비를 익명으로 등록해 통계에 보탭니다. 상대 이름·식장명·날짜는 저장하지 않고, 상황(종류·관계·연령대·지역·금액)만 익명 집계됩니다. 기여하면 다른 사람도 참고할 수 있어요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.describe('상대와의 관계'),
@@ -106,7 +106,7 @@ export function registerTools(server: McpServer): void {
   // Tool 3: 적정액 산정 — "나는 얼마 내면 돼"
   server.registerTool('how_much_should_i_pay', {
     annotations: annoRead('나는 얼마 내면 될까'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:내 상황(경조사·관계·나이·참석여부·식장 지역·동반인원)을 넣으면 적정 축의금/조의금을 근거와 함께 추천합니다. 예전에 이 사람에게 받은 금액(관계원장)이 있으면 호혜 기준으로 우선 반영합니다. 봉투 문구·멘트는 write_envelope으로 이어서 받으세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내 상황(경조사·관계·나이·참석여부·식장 지역·동반인원)을 넣으면 적정 축의금/조의금을 근거와 함께 추천합니다. 예전에 이 사람에게 받은 금액(관계원장)이 있으면 호혜 기준으로 우선 반영합니다. 봉투 문구·멘트는 write_envelope으로 이어서 받으세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.describe('상대와의 관계'),
@@ -138,7 +138,7 @@ export function registerTools(server: McpServer): void {
   // Tool 4: 봉투 문구 + 멘트
   server.registerTool('write_envelope', {
     annotations: annoRead('봉투에 뭐라 쓸까'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:경조사 종류·종교·관계에 맞는 봉투 앞면 문구(한자·한글), 이름 표기법, 축하/조문 멘트 3안(격식/보통/친근), 예법 팁을 알려줍니다. "봉투에 뭐라 쓰지"가 막힐 때 사용하세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:경조사 종류·종교·관계에 맞는 봉투 앞면 문구(한자·한글), 이름 표기법, 축하/조문 멘트 3안(격식/보통/친근), 예법 팁을 알려줍니다. "봉투에 뭐라 쓰지"가 막힐 때 사용하세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       religion: zReligion.optional().describe('상대/고인의 종교(모르면 none)'),
@@ -155,7 +155,7 @@ export function registerTools(server: McpServer): void {
   // Tool 5: 갈까 말까 판단 — "이 경조사 가야 하나"
   server.registerTool('decide_attendance', {
     annotations: annoRead('이 경조사 갈까 말까'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:"이 경조사 가야 하나?" 관계·최근 왕래·거리·예전에 받은 것(관계원장)을 종합해 "참석/송금만/생략"을 근거와 함께 판단합니다. 얼마 낼지의 앞 단계 고민을 대신 정리해줘요. 결과는 익명으로 공유할 수 있어요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:"이 경조사 가야 하나?" 관계·최근 왕래·거리·예전에 받은 것(관계원장)을 종합해 "참석/송금만/생략"을 근거와 함께 판단합니다. 얼마 낼지의 앞 단계 고민을 대신 정리해줘요. 결과는 익명으로 공유할 수 있어요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.describe('상대와의 관계'),
@@ -187,7 +187,7 @@ export function registerTools(server: McpServer): void {
   // Tool 6: 그날의 맥락 (손없는날·혼잡도) — 결혼 전용
   server.registerTool('check_day', {
     annotations: annoRead('그날 예식 붐빌까'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:결혼식 날짜의 음력·손없는날 여부로 예식장 혼잡도를 알려줍니다. 미신이 아니라 "예식 몰리는 날 = 일찍 도착" 실용 정보입니다. 장례에는 사용하지 않습니다.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:결혼식 날짜의 음력·손없는날 여부로 예식장 혼잡도를 알려줍니다. 미신이 아니라 "예식 몰리는 날 = 일찍 도착" 실용 정보입니다. 장례에는 사용하지 않습니다.',
     inputSchema: {
       date: z.string().describe('날짜 YYYY-MM-DD'),
     },
@@ -205,7 +205,7 @@ export function registerTools(server: McpServer): void {
   // Tool 6: 경조사비 기록 (record_gift) — 쓰기
   server.registerTool('record_gift', {
     annotations: annoWrite('경조사비 기록해두기'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:내가 낸/받은 경조사비를 상대별로 기록해둡니다. 다음에 그 사람 경조사 때 "예전에 이만큼 받았으니 이만큼" 호혜 기준으로 알려주고, 미답례도 챙겨줍니다. 이게 얼마낼까가 관계를 기억하는 방식이에요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내가 낸/받은 경조사비를 상대별로 기록해둡니다. 다음에 그 사람 경조사 때 "예전에 이만큼 받았으니 이만큼" 호혜 기준으로 알려주고, 미답례도 챙겨줍니다. 이게 얼마낼까가 관계를 기억하는 방식이에요.',
     inputSchema: {
       userId: z.string().describe('사용자 식별자'),
       person: z.string().describe('상대 이름/별칭'),
@@ -227,7 +227,7 @@ export function registerTools(server: McpServer): void {
   // Tool 7: 내 경조사 요약 (시즌 브리핑 + 미답례)
   server.registerTool('my_gift_summary', {
     annotations: annoRead('내 경조사 정리', false),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:지금까지 내가 낸/받은 경조사비 총액과, 받았는데 아직 못 갚은 관계(미답례)를 정리해줍니다. "이번 시즌 얼마 나갔나", "내가 챙길 사람 있나" 확인할 때 사용하세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:지금까지 내가 낸/받은 경조사비 총액과, 받았는데 아직 못 갚은 관계(미답례)를 정리해줍니다. "이번 시즌 얼마 나갔나", "내가 챙길 사람 있나" 확인할 때 사용하세요.',
     inputSchema: {
       userId: z.string().describe('사용자 식별자'),
     },
@@ -248,7 +248,7 @@ export function registerTools(server: McpServer): void {
   // Tool 8: 속마음 사연 조회 — "같은 고민 한 사람들"
   server.registerTool('read_confessions', {
     annotations: annoRead('같은 고민 한 사람들', false),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:같은 경조사 상황에서 다른 사람들이 익명으로 남긴 속마음·경험을 공감순으로 보여줍니다. "나만 이런 고민인가" 싶을 때, 익명이라 솔직한 남들의 진심을 확인하세요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:같은 경조사 상황에서 다른 사람들이 익명으로 남긴 속마음·경험을 공감순으로 보여줍니다. "나만 이런 고민인가" 싶을 때, 익명이라 솔직한 남들의 진심을 확인하세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.optional().describe('상대와의 관계'),
@@ -269,7 +269,7 @@ export function registerTools(server: McpServer): void {
   // Tool 9: 속마음 남기기 (쓰기)
   server.registerTool('write_confession', {
     annotations: annoWrite('내 속마음 익명으로 남기기'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:경조사에서 겪은 고민·경험·속마음을 익명 한 줄로 남깁니다. 이름·연락처는 저장하지 않아요. 당신의 한 줄이 같은 고민을 하는 다음 사람에게 위안이 됩니다. "당신만 그런 거 아니에요."',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:경조사에서 겪은 고민·경험·속마음을 익명 한 줄로 남깁니다. 이름·연락처는 저장하지 않아요. 당신의 한 줄이 같은 고민을 하는 다음 사람에게 위안이 됩니다. "당신만 그런 거 아니에요."',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.optional().describe('상대와의 관계'),
@@ -285,7 +285,7 @@ export function registerTools(server: McpServer): void {
   // Tool 10: 공감/신고
   server.registerTool('react_confession', {
     annotations: annoWrite('공감하거나 신고하기'),
-    description: '얼마낼까 - 경조사 익명 커뮤니티:익명 속마음에 공감(👍)을 누르거나, 부적절한 글을 신고합니다. 공감이 많은 글이 위로 올라가고, 신고가 쌓이면 숨겨집니다.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:익명 속마음에 공감(👍)을 누르거나, 부적절한 글을 신고합니다. 공감이 많은 글이 위로 올라가고, 신고가 쌓이면 숨겨집니다.',
     inputSchema: {
       id: z.string().describe('속마음 id (read_confessions에서 확인)'),
       action: z.enum(['empathize', 'report']).describe('공감/신고'),
