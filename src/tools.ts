@@ -11,7 +11,7 @@ import { estimateGift, won, type GiftInput } from './giftLogic.js';
 import { decideAttendance } from './decide.js';
 import { makeEnvelope } from './envelope.js';
 import { getDayContext } from './lunar.js';
-import { submitRecord, query } from './crowdstats.js';
+import { submitRecord, query, DATA_SOURCE } from './crowdstats.js';
 import { addConfession, listConfessions, empathize, reportConfession } from './confession.js';
 import { addLedgerEntry, findReciprocity, summarizeLedger } from './ledger.js';
 import type { EventType, Relation, Religion, RegionTier, Attendance } from './types.js';
@@ -66,9 +66,16 @@ export function registerTools(server: McpServer): void {
         + '\n\n혼자 고민한 거 아니에요. 당신 마음도 남겨두면 다음 사람에게 힘이 돼요(write_confession).'
       : '';
 
+    // 표본 구성 투명 표기 — 공개통계 기반 vs 실사용자 제출 (심사 요구: 출처 명확화)
+    const userN = Math.round(r.sampleSize * (1 - r.seedRatio));
+    const seedN = r.sampleSize - userN;
+    const sourceBreakdown = `📚 표본 ${r.sampleSize}건 = 공개통계 기반 ${seedN}건`
+      + (userN > 0 ? ` + 이용자 익명 제출 ${userN}건` : '')
+      + `\n${DATA_SOURCE}`;
+
     if (r.belowThreshold) {
       return { content: [{ type: 'text', text:
-        `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''}\n${r.disclaimer}${voiceBlock}` }] };
+        `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''}\n${r.disclaimer}\n\n${DATA_SOURCE}${voiceBlock}` }] };
     }
     const s = r.stats!;
     const distLines = Object.entries(s.distribution)
@@ -83,7 +90,7 @@ export function registerTools(server: McpServer): void {
       + `\n같은 상황 ${r.sampleSize}명이 실제로 낸 금액이에요. "얼마가 맞다"가 아니라 "남들은 이렇게 냈다"는 데이터입니다.\n`
       + `\n▸ 가장 많은 금액: ${won(s.mode)} (${mostPct}%가 이 금액)\n▸ 중앙값: ${won(s.median)}  ·  보통 ${won(s.p25)}~${won(s.p75)} 사이\n`
       + `\n실제 낸 금액 분포 (${r.sampleSize}명 기준):\n${distLines}\n\n`
-      + `${r.disclaimer}${regionHint}${voiceBlock}` }] };
+      + `${r.disclaimer}${regionHint}\n\n${sourceBreakdown}${voiceBlock}` }] };
   });
 
   // Tool 2: 익명 제출 — "나도 얼마 냈는지 알려주기" (쓰기)
