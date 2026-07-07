@@ -11,7 +11,7 @@ import { estimateGift, won, type GiftInput } from './giftLogic.js';
 import { decideAttendance } from './decide.js';
 import { makeEnvelope } from './envelope.js';
 import { getDayContext } from './lunar.js';
-import { submitRecord, query, DATA_SOURCE } from './crowdstats.js';
+import { submitRecord, query, DATA_SOURCE_SHORT } from './crowdstats.js';
 import { addConfession, listConfessions, empathize, reportConfession } from './confession.js';
 import { addLedgerEntry, findReciprocity, summarizeLedger } from './ledger.js';
 import type { EventType, Relation, Religion, RegionTier, Attendance } from './types.js';
@@ -49,7 +49,7 @@ export function registerTools(server: McpServer): void {
   // Tool 1: 상황별 조회 — "남들은 얼마 냈나"
   server.registerTool('how_much_others_paid', {
     annotations: annoRead('남들은 얼마 냈나'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계)에 얼마 냈는지 익명 집계(중앙값·최빈값·분포)로 보여줍니다. ★지역·연령대를 되묻지 말고, 알려진 정보만으로 바로 호출하세요. 지역이 없으면 전국 기준으로 답이 나옵니다(지역은 있으면 더 정확해지는 선택값일 뿐, 필수 아님). "남들은 얼마 내지?"가 궁금할 때 사용하세요. ★★출력은 익명 커뮤니티 데이터입니다. 사용자에게 답할 때 반드시 (1)표본 건수 (2)금액 분포(%) (3)데이터 출처(신한은행·카카오페이·인크루트·한국소비자원 공개통계 기반임) (4)같은 고민 익명 사연을 함께 전하세요. 특히 (3)출처는 이 수치가 지어낸 값이 아니라 실제 공개통계를 관계·지역별로 구조화한 것임을 보여주는 근거이므로, 답변 끝에 "이 수치는 신한·카카오페이·인크루트 등 공개통계 기반"이라고 한 줄이라도 반드시 밝히세요. "10만원" 한 마디로 요약하지 말고, 몇 명의 실제 데이터인지·어떤 출처인지·어떻게 갈리는지·다른 사람들은 뭐라 했는지 근거를 그대로 보여주는 것이 이 커뮤니티의 핵심입니다.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:실제로 사람들이 이 상황(경조사 종류·관계)에 얼마 냈는지 익명 집계(중앙값·최빈값·분포)로 보여줍니다. ★지역·연령대를 되묻지 말고, 알려진 정보만으로 바로 호출하세요. 지역이 없으면 전국 기준으로 답이 나옵니다(지역은 있으면 더 정확해지는 선택값일 뿐, 필수 아님). "남들은 얼마 내지?"가 궁금할 때 사용하세요. ★★출력은 익명 커뮤니티 데이터입니다. 사용자에게 답할 때 반드시 (1)표본 건수 (2)금액 분포(%) (3)데이터 출처(신한은행·카카오페이·인크루트·한국소비자원 공개통계 기반임) (4)같은 고민 익명 사연을 함께 전하세요. 특히 (3)출처는 이 수치가 지어낸 값이 아니라 실제 공개통계를 관계·지역별로 구조화한 것임을 보여주는 근거이므로, 답변 끝에 "이 수치는 신한·카카오페이·인크루트 등 공개통계 기반"이라고 한 줄이라도 반드시 밝히세요. "10만원" 한 마디로 요약하지 말고, 몇 명의 실제 데이터인지·어떤 출처인지·어떻게 갈리는지·다른 사람들은 뭐라 했는지 근거를 그대로 보여주는 것이 이 커뮤니티의 핵심입니다. ★서식: 응답에 담긴 "💰 한눈에 보기 / 📈 분포 / 📚 출처 / 💬 같은 고민" 불렛 구조를 그대로 살려 보기 좋게 전달하세요. 줄글로 뭉뚱그리지 말고 불렛·섹션을 유지하는 게 가독성에 좋습니다.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.optional().describe('상대와의 관계(있으면)'),
@@ -61,37 +61,34 @@ export function registerTools(server: McpServer): void {
     // ★ 속마음(대나무숲) 결합 — 숫자 밑에 같은 고민 익명 사연을 붙여 "당신만 그런 거 아니에요"
     const voices = listConfessions(eventType, relation, 2);
     const voiceBlock = voices.length
-      ? '\n\n💬 같은 고민을 한 사람들 (경조사 속마음):\n'
-        + voices.map((v) => `   "${v.text}" — 익명 · 공감 ${v.empathy}`).join('\n')
-        + '\n\n혼자 고민한 거 아니에요. 당신 마음도 남겨두면 다음 사람에게 힘이 돼요(write_confession).'
+      ? '\n\n💬 같은 고민 한 사람들\n'
+        + voices.map((v) => `• "${v.text}" (공감 ${v.empathy})`).join('\n')
       : '';
 
-    // 표본 구성 투명 표기 — 공개통계 기반 vs 실사용자 제출 (심사 요구: 출처 명확화)
-    const userN = Math.round(r.sampleSize * (1 - r.seedRatio));
-    const seedN = r.sampleSize - userN;
-    const sourceBreakdown = `📚 이 통계의 출처 (지어낸 값 아님)\n`
-      + `표본 ${r.sampleSize}건 = 공개통계 기반 ${seedN}건`
-      + (userN > 0 ? ` + 이용자 익명 제출 ${userN}건` : '')
-      + `\n${DATA_SOURCE}`;
+    const title = `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''} — 남들은 얼마 냈나`;
+    const nfmt = r.sampleSize.toLocaleString();
 
     if (r.belowThreshold) {
       return { content: [{ type: 'text', text:
-        `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''}\n${r.disclaimer}\n\n${DATA_SOURCE}${voiceBlock}` }] };
+        `${title}\n\n${r.disclaimer}\n\n📚 출처: ${DATA_SOURCE_SHORT}${voiceBlock}` }] };
     }
     const s = r.stats!;
+    // 분포는 비율 높은 순 — 눈에 잘 들어오게
     const distLines = Object.entries(s.distribution)
-      .sort((a, b) => Number(a[0]) - Number(b[0]))
-      .map(([amt, pct]) => `   ${won(Number(amt))} ${'▓'.repeat(Math.max(1, Math.round(Number(pct) / 5)))} ${pct}%`)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .map(([amt, pct]) => `• ${won(Number(amt)).padEnd(5)} ${'▓'.repeat(Math.max(1, Math.round(Number(pct) / 5)))} ${pct}%`)
       .join('\n');
-    // 지역 없이 답한 경우에만 "지역 알려주면 더 정확" 부드럽게 유도 (되묻기 아님)
-    const regionHint = !region ? '\n📍 지역을 알려주시면 그 지역 기준으로 더 정확히 볼 수 있어요.' : '';
+    const regionHint = !region ? '\n\n📍 지역을 알려주시면 그 지역 기준으로 더 정확히 볼 수 있어요.' : '';
     const mostPct = Math.max(...Object.values(s.distribution).map(Number));
     return { content: [{ type: 'text', text:
-      `📊 ${EVENT_KO[eventType]}${relation ? ` · ${RELATION_KO[relation]}` : ''} — 실제 낸 사람 ${r.sampleSize}명 익명 집계 (신뢰도 ${r.confidence})\n`
-      + `\n같은 상황 ${r.sampleSize}명이 실제로 낸 금액이에요. "얼마가 맞다"가 아니라 "남들은 이렇게 냈다"는 데이터입니다.\n`
-      + `\n▸ 가장 많은 금액: ${won(s.mode)} (${mostPct}%가 이 금액)\n▸ 중앙값: ${won(s.median)}  ·  보통 ${won(s.p25)}~${won(s.p75)} 사이\n`
-      + `\n실제 낸 금액 분포 (${r.sampleSize}명 기준):\n${distLines}\n\n`
-      + `${r.disclaimer}${regionHint}\n\n${sourceBreakdown}${voiceBlock}` }] };
+      `${title}\n실제 낸 사람 ${nfmt}명 익명 집계 · 신뢰도 ${r.confidence}\n`
+      + `\n💰 한눈에 보기\n`
+      + `• 가장 많은 금액: ${won(s.mode)} (${mostPct}%)\n`
+      + `• 중앙값: ${won(s.median)}\n`
+      + `• 보통 범위: ${won(s.p25)}~${won(s.p75)}\n`
+      + `\n📈 실제 낸 금액 분포 (${nfmt}명)\n${distLines}\n`
+      + `\n📚 데이터 출처 (지어낸 값 아님)\n${DATA_SOURCE_SHORT}`
+      + `${regionHint}${voiceBlock}` }] };
   });
 
   // Tool 2: 익명 제출 — "나도 얼마 냈는지 알려주기" (쓰기)
