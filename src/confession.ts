@@ -8,7 +8,7 @@
 //   · 상황 태그(eventType·relation)로 "같은 고민"만 매칭해서 보여줌.
 
 import { join } from 'node:path';
-import { dataDir, readJsonl, appendJsonl, readJsonArray, writeJsonArray } from './storage.js';
+import { dataDir, readJsonl, appendJsonl, writeJsonl, readJsonArray, writeJsonArray } from './storage.js';
 import type { EventType, Relation } from './types.js';
 
 export interface Confession {
@@ -128,6 +128,21 @@ export function empathize(id: string): number {
   meta[id] = cur;
   saveMeta(meta);
   return cur.empathy;
+}
+
+/** 내가 남긴 속마음 삭제 (delete_confession).
+ *  익명이라 소유권 증명은 불가 → id를 아는 사람만 지울 수 있게 한다(id는 작성 시 본인에게만 반환).
+ *  시드('s' salt)는 삭제 불가. jsonl 전체 재작성으로 물리 삭제. */
+export function deleteConfession(id: string): { ok: boolean; reason?: string } {
+  const all = readJsonl<Confession>(confFile());
+  const target = all.find((c) => c.id === id);
+  if (!target) return { ok: false, reason: '해당 id의 속마음을 찾지 못했어요. read_confessions에서 id를 확인해 주세요.' };
+  if (target.seed) return { ok: false, reason: '예시로 제공된 글은 삭제할 수 없어요. 본인이 남긴 글만 삭제됩니다.' };
+  const rest = all.filter((c) => c.id !== id);
+  writeJsonl(confFile(), rest);
+  const meta = loadMeta();
+  if (meta[id]) { delete meta[id]; saveMeta(meta); }
+  return { ok: true };
 }
 
 /** 신고 (report_confession) */

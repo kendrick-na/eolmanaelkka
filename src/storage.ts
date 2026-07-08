@@ -47,6 +47,11 @@ export function appendJsonl<T>(path: string, record: T): void {
   appendFileSync(path, JSON.stringify(record) + '\n', 'utf-8');
 }
 
+/** JSONL 전체 재작성 (삭제·수정용 — 본인 데이터 관리에 필요) */
+export function writeJsonl<T>(path: string, records: T[]): void {
+  writeFileSync(path, records.map((r) => JSON.stringify(r)).join('\n') + (records.length ? '\n' : ''), 'utf-8');
+}
+
 /** JSONL 전체 로드 */
 export function readJsonl<T>(path: string): T[] {
   if (!existsSync(path)) return [];

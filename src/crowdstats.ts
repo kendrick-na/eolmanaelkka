@@ -9,11 +9,12 @@
 //   중앙값·최빈값(평균 대신), IQR 이상치 트림, 입력범위 강제(1~100만), 신뢰도 배지(표본수 기반).
 
 import { join } from 'node:path';
-import { dataDir, readJsonl, appendJsonl } from './storage.js';
+import { dataDir, readJsonl, appendJsonl, writeJsonl } from './storage.js';
 import type { EventType, Relation } from './types.js';
 
 // ── 수집 스키마 (위험필드 배제) ──
 export interface GiftRecord {
+  id?: string;            // 제출 식별자(본인 삭제용) — 작성 시 본인에게만 반환. 시드는 없음.
   eventType: EventType;
   relation?: Relation;    // 관계 없는 상황 통계(참석/불참·연령대)도 허용
   amount: number;         // 원. 1만~100만 강제, 만원 반올림
@@ -32,7 +33,7 @@ const MAX_AMOUNT = 1000000; // 100만원
 //   분포로 구조화한 것. (심사 요구: 출처 명시 / LLM 웹검색과의 차별점 = 원자료의 구조화)
 // 짧은 출처 한 줄 — 하단 출처 섹션·표본부족 시 사용. AI가 요약해도 이 한 줄은 붙이기 쉬움.
 export const DATA_SOURCE_SHORT =
-  '신한은행 금융생활보고서 2024 · 카카오페이 축의금설문(74,652명) · 인크루트 경조사비설문 · 한국소비자원 식대통계 (공개통계를 관계·지역별로 구조화)';
+  '신한은행 「보통사람 금융생활 보고서 2024」(shinhangroup.com 공개) · 카카오페이 축의금 설문 2024(74,652명 투표) · 인크루트 경조사비 설문 2023·2025 · 한국소비자원 예식장 식대 조사 2025. 위 공개통계를 관계·지역·연령대별 익명 표본 분포로 구조화. (원문은 각 기관명으로 검색해 확인 가능)';
 
 export const DATA_SOURCE =
   '데이터 출처: 신한은행 「보통사람 금융생활 보고서 2024」(1만 명) · '
@@ -67,19 +68,33 @@ export function sanitizeRegion(raw?: string): string | undefined {
   return t; // 짧은 지명(예: "강남", "종로")은 허용
 }
 
-/** 익명 제출 (submit_gift_record). 위험필드는 애초에 스키마에 없음. */
-export function submitRecord(r: Omit<GiftRecord, 'ts' | 'seed'>): {
-  ok: boolean; reason?: string; sampleSize: number;
+let _recSeq = 0;
+/** 익명 제출 (submit_gift_record). 위험필드는 애초에 스키마에 없음.
+ *  본인 삭제용 id를 발급해 반환한다(익명이라 id를 아는 본인만 삭제 가능). */
+export function submitRecord(r: Omit<GiftRecord, 'ts' | 'seed' | 'id'>): {
+  ok: boolean; reason?: string; sampleSize: number; id?: string;
 } {
   const amount = sanitizeAmount(r.amount);
   if (amount === null) {
     return { ok: false, reason: '금액은 1만~100만원 범위만 등록돼요.', sampleSize: 0 };
   }
+  const ts = Date.now();
+  const id = 'g' + (ts % 1000000).toString(36) + (_recSeq++).toString(36);
   // 지역은 신상 유입 차단 정제(동·건물명·숫자 제거, 시/구까지만)
-  const rec: GiftRecord = { ...r, amount, region: sanitizeRegion(r.region), ts: Date.now() };
+  const rec: GiftRecord = { id, ...r, amount, region: sanitizeRegion(r.region), ts };
   appendJsonl(recordsFile(), rec);
   const after = query(r.eventType, { relation: r.relation }).sampleSize;
-  return { ok: true, sampleSize: after };
+  return { ok: true, sampleSize: after, id };
+}
+
+/** 내가 낸 익명 제출 삭제 (delete_gift_record). id를 아는 본인만. 시드는 삭제 불가. */
+export function deleteRecord(id: string): { ok: boolean; reason?: string } {
+  const all = readJsonl<GiftRecord>(recordsFile());
+  const target = all.find((r) => r.id === id);
+  if (!target) return { ok: false, reason: '해당 id의 제출 기록을 찾지 못했어요. 등록 시 받은 id를 확인해 주세요.' };
+  if (target.seed) return { ok: false, reason: '공개통계 데이터는 삭제할 수 없어요. 본인이 제출한 기록만 삭제됩니다.' };
+  writeJsonl(recordsFile(), all.filter((r) => r.id !== id));
+  return { ok: true };
 }
 
 /** 시드 데이터 대량 주입 (공개통계 크롤링 결과). seed=true로 표기. */

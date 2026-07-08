@@ -11,8 +11,8 @@ import { estimateGift, won, type GiftInput } from './giftLogic.js';
 import { decideAttendance } from './decide.js';
 import { makeEnvelope } from './envelope.js';
 import { getDayContext } from './lunar.js';
-import { submitRecord, query, DATA_SOURCE_SHORT } from './crowdstats.js';
-import { addConfession, listConfessions, empathize, reportConfession } from './confession.js';
+import { submitRecord, deleteRecord, query, DATA_SOURCE_SHORT } from './crowdstats.js';
+import { addConfession, listConfessions, empathize, reportConfession, deleteConfession } from './confession.js';
 import { addLedgerEntry, findReciprocity, summarizeLedger } from './ledger.js';
 import type { EventType, Relation, Religion, RegionTier, Attendance } from './types.js';
 
@@ -94,7 +94,7 @@ export function registerTools(server: McpServer): void {
   // Tool 2: 익명 제출 — "나도 얼마 냈는지 알려주기" (쓰기)
   server.registerTool('submit_gift_record', {
     annotations: annoWrite('내가 낸 금액 익명 등록'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내가 실제로 낸 경조사비를 익명으로 등록해 통계에 보탭니다. 상대 이름·식장명·날짜는 저장하지 않고, 상황(종류·관계·연령대·지역·금액)만 익명 집계됩니다. 기여하면 다른 사람도 참고할 수 있어요.',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내가 실제로 낸 경조사비를 익명으로 등록해 통계에 보탭니다. 상대 이름·식장명·날짜는 저장하지 않고, 상황(종류·관계·연령대·지역·금액)만 익명 집계됩니다. ★익명이라 등록 후에는 본인 확인·수정이 불가하며, 등록 시 발급되는 삭제용 id로 삭제만 가능합니다(delete_gift_record). 이 점을 사용자에게 반드시 안내하고 발급된 id를 알려주세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.describe('상대와의 관계'),
@@ -107,7 +107,9 @@ export function registerTools(server: McpServer): void {
     const res = submitRecord({ eventType, relation, amount, ageBand: ageBand as any, region, attended });
     if (!res.ok) return { content: [{ type: 'text', text: `❌ ${res.reason}` }] };
     return { content: [{ type: 'text', text:
-      `✅ 익명으로 등록했어요. 덕분에 이 상황(${EVENT_KO[eventType]}·${RELATION_KO[relation]}) 표본이 ${res.sampleSize}건이 됐어요. 고맙습니다 🙏` }] };
+      `✅ 익명으로 등록했어요. 덕분에 이 상황(${EVENT_KO[eventType]}·${RELATION_KO[relation]}) 표본이 ${res.sampleSize}건이 됐어요. 고맙습니다 🙏\n\n`
+      + `🔒 익명이라 등록 후엔 본인 확인·수정이 안 돼요. 지우고 싶으면 아래 삭제용 id로 삭제만 가능해요.\n`
+      + `삭제용 id: ${res.id}  ("이 id 삭제해줘"라고 하면 delete_gift_record로 지워드려요)` }] };
   });
 
   // ══════════ 실행: 그래서 나는 얼마 내면 돼 (AI 산정) ══════════
@@ -280,7 +282,7 @@ export function registerTools(server: McpServer): void {
   // Tool 9: 속마음 남기기 (쓰기)
   server.registerTool('write_confession', {
     annotations: annoWrite('내 속마음 익명으로 남기기'),
-    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:경조사에서 겪은 고민·경험·속마음을 익명 한 줄로 남깁니다. 이름·연락처는 저장하지 않아요. 당신의 한 줄이 같은 고민을 하는 다음 사람에게 위안이 됩니다. "당신만 그런 거 아니에요."',
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:경조사에서 겪은 고민·경험·속마음을 익명 한 줄로 남깁니다. 이름·연락처는 저장하지 않아요. 당신의 한 줄이 같은 고민을 하는 다음 사람에게 위안이 됩니다. "당신만 그런 거 아니에요." ★익명이라 남긴 후에는 본인 확인·수정이 불가하며, 남길 때 발급되는 id로 삭제만 가능합니다(delete_confession). 이 점을 사용자에게 반드시 안내하고 발급된 id를 알려주세요.',
     inputSchema: {
       eventType: zEvent.describe('경조사 종류'),
       relation: zRelation.optional().describe('상대와의 관계'),
@@ -290,7 +292,9 @@ export function registerTools(server: McpServer): void {
     const res = addConfession({ eventType, relation, text });
     if (!res.ok) return { content: [{ type: 'text', text: `❌ ${res.reason}` }] };
     return { content: [{ type: 'text', text:
-      `✅ 속마음을 남겼어요. 같은 고민을 하는 누군가에게 분명 힘이 될 거예요. 고맙습니다 🌿` }] };
+      `✅ 속마음을 남겼어요. 같은 고민을 하는 누군가에게 분명 힘이 될 거예요. 고맙습니다 🌿\n\n`
+      + `🔒 익명이라 남긴 후엔 본인 확인·수정이 안 돼요. 지우고 싶으면 아래 id로 삭제만 가능해요.\n`
+      + `삭제용 id: ${res.id}  ("이 id 삭제해줘"라고 하면 delete_confession으로 지워드려요)` }] };
   });
 
   // Tool 10: 공감/신고
@@ -309,5 +313,31 @@ export function registerTools(server: McpServer): void {
     const r = reportConfession(id);
     return { content: [{ type: 'text', text:
       r.hidden ? '🚫 신고 접수됐고, 이 글은 숨겨졌어요.' : '🚩 신고 접수됐어요. 검토할게요.' }] };
+  });
+
+  // Tool 11: 내 속마음 삭제 (본인 데이터 관리권) — 익명이라 id를 아는 본인만
+  server.registerTool('delete_confession', {
+    annotations: annoWrite('내가 남긴 속마음 삭제'),
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내가 남긴 익명 속마음을 삭제합니다. 익명 서비스라 별도 로그인·본인확인이 없는 대신, 글을 남길 때 발급받은 삭제용 id로 본인이 직접 삭제합니다(예시로 제공된 글은 삭제 불가). 남긴 글을 지우고 싶을 때 사용하세요.',
+    inputSchema: {
+      id: z.string().describe('삭제할 속마음 id (write_confession 등록 시 발급, read_confessions에서도 확인)'),
+    },
+  }, async ({ id }) => {
+    const r = deleteConfession(id);
+    return { content: [{ type: 'text', text:
+      r.ok ? '🗑️ 남기셨던 속마음을 삭제했어요. 흔적 없이 지워졌습니다.' : `❌ ${r.reason}` }] };
+  });
+
+  // Tool 12: 내 익명 제출 삭제 (본인 데이터 관리권)
+  server.registerTool('delete_gift_record', {
+    annotations: annoWrite('내가 낸 익명 제출 삭제'),
+    description: '얼마낼까 - 남들은 얼마? 축의금·조의금 익명 커뮤니티:내가 통계에 보탠 익명 제출 기록을 삭제합니다. 익명 서비스라 로그인·본인확인이 없는 대신, 등록할 때 발급받은 삭제용 id로 본인이 직접 삭제합니다(공개통계 데이터는 삭제 불가). 등록을 취소하고 싶을 때 사용하세요.',
+    inputSchema: {
+      id: z.string().describe('삭제할 제출 id (submit_gift_record 등록 시 발급)'),
+    },
+  }, async ({ id }) => {
+    const r = deleteRecord(id);
+    return { content: [{ type: 'text', text:
+      r.ok ? '🗑️ 제출하셨던 기록을 통계에서 삭제했어요.' : `❌ ${r.reason}` }] };
   });
 }
