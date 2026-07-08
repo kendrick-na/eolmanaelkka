@@ -8,11 +8,13 @@
 //   · 상황 태그(eventType·relation)로 "같은 고민"만 매칭해서 보여줌.
 
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { dataDir, readJsonl, appendJsonl, writeJsonl, readJsonArray, writeJsonArray } from './storage.js';
 import type { EventType, Relation } from './types.js';
 
 export interface Confession {
-  id: string;
+  id: string;            // 공개 식별자 (공감·신고용). read_confessions로 노출됨.
+  deleteToken?: string;  // ★비공개 삭제 토큰 — 작성 시 본인에게만 반환. read엔 노출 안 함. 이걸 아는 본인만 삭제 가능.
   eventType: EventType;
   relation?: Relation;
   text: string;          // 한 줄 사연 (최대 140자)
@@ -68,7 +70,7 @@ function makeId(ts: number, text: string, salt = ''): string {
 /** 사연 작성 (write_confession). 필터 통과 시 저장. */
 export function addConfession(input: {
   eventType: EventType; relation?: Relation; text: string;
-}): { ok: boolean; reason?: string; id?: string } {
+}): { ok: boolean; reason?: string; id?: string; deleteToken?: string } {
   const text = input.text.trim();
   if (text.length < 5) return { ok: false, reason: '조금만 더 적어주세요(최소 5자).' };
   if (text.length > MAX_LEN) return { ok: false, reason: `${MAX_LEN}자 이내로 적어주세요.` };
@@ -76,10 +78,13 @@ export function addConfession(input: {
     if (p.test(text)) return { ok: false, reason: '연락처·실명·욕설은 넣을 수 없어요. 익명 공간이라 서로 보호해요.' };
   }
   const ts = Date.now();
-  const id = makeId(ts, text, 'u' + (_idSeq++).toString(36));
-  const rec: Confession = { id, eventType: input.eventType, relation: input.relation, text, empathy: 0, reports: 0, ts };
+  // id는 공개(공감·신고용), deleteToken은 비공개(본인 삭제 전용).
+  // crypto.randomUUID로 stateless 서버 간 충돌·추측 방지.
+  const id = makeId(ts, text, 'u' + (_idSeq++).toString(36) + randomUUID().slice(0, 8));
+  const deleteToken = randomUUID();
+  const rec: Confession = { id, deleteToken, eventType: input.eventType, relation: input.relation, text, empathy: 0, reports: 0, ts };
   appendJsonl(confFile(), rec);
-  return { ok: true, id };
+  return { ok: true, id, deleteToken };
 }
 
 /** 시드 사연 대량 주입 */
@@ -131,17 +136,20 @@ export function empathize(id: string): number {
 }
 
 /** 내가 남긴 속마음 삭제 (delete_confession).
- *  익명이라 소유권 증명은 불가 → id를 아는 사람만 지울 수 있게 한다(id는 작성 시 본인에게만 반환).
- *  시드('s' salt)는 삭제 불가. jsonl 전체 재작성으로 물리 삭제. */
-export function deleteConfession(id: string): { ok: boolean; reason?: string } {
+ *  ★비공개 deleteToken으로만 삭제 — read_confessions로 공개되는 id로는 삭제 불가.
+ *   토큰은 작성 시 본인에게만 반환되므로 "본인만 삭제"가 실제로 보장된다(타인 무단삭제 차단).
+ *  시드는 토큰이 없어 애초에 삭제 불가. jsonl 전체 재작성으로 물리 삭제. */
+export function deleteConfession(deleteToken: string): { ok: boolean; reason?: string } {
+  if (!deleteToken || !deleteToken.trim()) {
+    return { ok: false, reason: '삭제하려면 글 남길 때 받은 삭제용 코드가 필요해요.' };
+  }
   const all = readJsonl<Confession>(confFile());
-  const target = all.find((c) => c.id === id);
-  if (!target) return { ok: false, reason: '해당 id의 속마음을 찾지 못했어요. read_confessions에서 id를 확인해 주세요.' };
-  if (target.seed) return { ok: false, reason: '예시로 제공된 글은 삭제할 수 없어요. 본인이 남긴 글만 삭제됩니다.' };
-  const rest = all.filter((c) => c.id !== id);
+  const target = all.find((c) => c.deleteToken && c.deleteToken === deleteToken);
+  if (!target) return { ok: false, reason: '삭제용 코드가 맞지 않아요. 글 남길 때 받은 코드인지 확인해 주세요. (남의 글은 지울 수 없어요)' };
+  const rest = all.filter((c) => c !== target);
   writeJsonl(confFile(), rest);
   const meta = loadMeta();
-  if (meta[id]) { delete meta[id]; saveMeta(meta); }
+  if (meta[target.id]) { delete meta[target.id]; saveMeta(meta); }
   return { ok: true };
 }
 

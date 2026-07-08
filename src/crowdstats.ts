@@ -9,12 +9,14 @@
 //   중앙값·최빈값(평균 대신), IQR 이상치 트림, 입력범위 강제(1~100만), 신뢰도 배지(표본수 기반).
 
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { dataDir, readJsonl, appendJsonl, writeJsonl } from './storage.js';
 import type { EventType, Relation } from './types.js';
 
 // ── 수집 스키마 (위험필드 배제) ──
 export interface GiftRecord {
-  id?: string;            // 제출 식별자(본인 삭제용) — 작성 시 본인에게만 반환. 시드는 없음.
+  id?: string;            // 내부 식별자. 제출 통계엔 노출 안 됨(query는 집계만 반환).
+  deleteToken?: string;   // ★비공개 삭제 토큰 — 작성 시 본인에게만 반환. 이걸 아는 본인만 삭제.
   eventType: EventType;
   relation?: Relation;    // 관계 없는 상황 통계(참석/불참·연령대)도 허용
   amount: number;         // 원. 1만~100만 강제, 만원 반올림
@@ -68,32 +70,36 @@ export function sanitizeRegion(raw?: string): string | undefined {
   return t; // 짧은 지명(예: "강남", "종로")은 허용
 }
 
-let _recSeq = 0;
 /** 익명 제출 (submit_gift_record). 위험필드는 애초에 스키마에 없음.
- *  본인 삭제용 id를 발급해 반환한다(익명이라 id를 아는 본인만 삭제 가능). */
-export function submitRecord(r: Omit<GiftRecord, 'ts' | 'seed' | 'id'>): {
-  ok: boolean; reason?: string; sampleSize: number; id?: string;
+ *  비공개 삭제 토큰을 발급해 반환한다(익명이라 토큰을 아는 본인만 삭제 가능).
+ *  ★query(통계)는 개별 id·토큰을 절대 노출하지 않으므로 토큰은 제출자만 안다. */
+export function submitRecord(r: Omit<GiftRecord, 'ts' | 'seed' | 'id' | 'deleteToken'>): {
+  ok: boolean; reason?: string; sampleSize: number; deleteToken?: string;
 } {
   const amount = sanitizeAmount(r.amount);
   if (amount === null) {
     return { ok: false, reason: '금액은 1만~100만원 범위만 등록돼요.', sampleSize: 0 };
   }
   const ts = Date.now();
-  const id = 'g' + (ts % 1000000).toString(36) + (_recSeq++).toString(36);
+  // crypto.randomUUID로 stateless 서버 간 id 충돌 방지(_recSeq 리셋 문제 해소).
+  const id = 'g' + randomUUID();
+  const deleteToken = randomUUID();
   // 지역은 신상 유입 차단 정제(동·건물명·숫자 제거, 시/구까지만)
-  const rec: GiftRecord = { id, ...r, amount, region: sanitizeRegion(r.region), ts };
+  const rec: GiftRecord = { id, deleteToken, ...r, amount, region: sanitizeRegion(r.region), ts };
   appendJsonl(recordsFile(), rec);
   const after = query(r.eventType, { relation: r.relation }).sampleSize;
-  return { ok: true, sampleSize: after, id };
+  return { ok: true, sampleSize: after, deleteToken };
 }
 
-/** 내가 낸 익명 제출 삭제 (delete_gift_record). id를 아는 본인만. 시드는 삭제 불가. */
-export function deleteRecord(id: string): { ok: boolean; reason?: string } {
+/** 내가 낸 익명 제출 삭제 (delete_gift_record). 비공개 토큰을 아는 본인만. 시드는 토큰 없어 삭제 불가. */
+export function deleteRecord(deleteToken: string): { ok: boolean; reason?: string } {
+  if (!deleteToken || !deleteToken.trim()) {
+    return { ok: false, reason: '삭제하려면 등록할 때 받은 삭제용 코드가 필요해요.' };
+  }
   const all = readJsonl<GiftRecord>(recordsFile());
-  const target = all.find((r) => r.id === id);
-  if (!target) return { ok: false, reason: '해당 id의 제출 기록을 찾지 못했어요. 등록 시 받은 id를 확인해 주세요.' };
-  if (target.seed) return { ok: false, reason: '공개통계 데이터는 삭제할 수 없어요. 본인이 제출한 기록만 삭제됩니다.' };
-  writeJsonl(recordsFile(), all.filter((r) => r.id !== id));
+  const target = all.find((r) => r.deleteToken && r.deleteToken === deleteToken);
+  if (!target) return { ok: false, reason: '삭제용 코드가 맞지 않아요. 등록할 때 받은 코드인지 확인해 주세요.' };
+  writeJsonl(recordsFile(), all.filter((r) => r !== target));
   return { ok: true };
 }
 

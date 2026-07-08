@@ -6,8 +6,10 @@
 //   · 지금(개발·심사): 파일 구현으로 셋업 0·비용 0. 카카오 배포 컨테이너가 warm이면 재배포 전까지 유지.
 //   · 나중(실서비스): SupabaseStore 등 구현체만 갈아끼우면 됨(이 인터페이스 유지).
 //
-// ⚠️ 파일 구현은 append/read만 — 동시 쓰기 경합은 데모 규모에선 무시 가능.
-//    실서비스 대규모 동시쓰기가 필요해지면 Store를 DB 구현으로 교체.
+// ⚠️ 파일 구현은 append/read 위주 + 삭제용 writeJsonl(전체 재작성)만 추가.
+//    본인 데이터 삭제(delete_confession/gift_record) 때만 writeJsonl을 쓰는데, 이때는
+//    read-modify-write라 이론상 동시 append와 경합 시 유실 창이 있다. 데모 규모(저동시성)에선
+//    무시 가능하나, 실서비스로 가면 Store를 DB(트랜잭션) 구현으로 교체하거나 tombstone 방식으로 전환할 것.
 
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
